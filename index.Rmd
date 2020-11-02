@@ -1,9 +1,108 @@
 --- 
-title: "Political Likert Data"
-author: "Andus Kong, Sieyona Chang"
+title: "Electoral map"
+author: "Andus Kong, Siyeona Chang"
 date: "`r Sys.Date()`"
 site: bookdown::bookdown_site
 ---
 
-# Down the rabbit-hole
+
+## Background
+
+Against the backdrop of the upcoming election, the media has given a lot of attention to races that are expected to be particularly competitive. Given the large share of international students in the class, I thought it would be interesting to provide some background as to what the electoral map for the presidential election looks like, and how margins have worked out in past elections.
+
+```{r, include=FALSE}
+setwd("/Users/siyeona/Downloads/mphil_data")
+#install.packages("mapproj")
+library(dplyr)
+library(tidyverse)
+library(haven)
+library(car)
+library(ggplot2)
+library(maps)
+library(mapproj)
+library(cowplot)
+library(readxl)
+library(magrittr)
+```
+
+The data for the analysis is taken from MIT Elections Lab ()
+```{r, include=FALSE}
+load(file = "1976-2016-president.RData"); elect_pres<-x; rm(x) # presidential
+turnout<-read_excel("turnout.xlsx")
+turnout<-turnout %>%
+  select(c("year","state","vep_highest_office")) %>%
+  filter(state!="United States")
+
+elect_data<-elect_pres %>%
+  select(c("year","state","state_po","candidate","party","totalvotes","candidatevotes"))
+
+pres_top2<- elect_data %>%
+  group_by(state,year) %>%
+  arrange(desc(candidatevotes),.by_group = TRUE) %>%
+  filter(row_number() %in% c(1,2)) %>%
+  mutate(share = candidatevotes/totalvotes) %>%
+  mutate(margin = share-dplyr::lead(share))
+
+pres_winner<- pres_top2 %>%
+  group_by(state,year) %>%
+  filter(row_number() %in% c(1))
+
+margins<-merge(pres_winner, turnout, by=c("state","year"))
+
+```
+
+```{r}
+us_states <- map_data("state")
+head(us_states)
+margins$state <- tolower(margins$state)
+names(us_states)[names(us_states) == "region"] <-"state"
+
+df.margin <- merge(margins, us_states, sort = FALSE, by = "state")
+table(df.margin$year)
+```
+
+```{r}
+margin16 <- df.margin %>%
+  filter(year==2016)
+```
+
+
+```{r}
+# change legend aesthetics.. should be much smaller and blend in with the map
+# center title.
+p_party <- ggplot(data = margin16,
+            aes(x = long, y = lat,
+                group = state, fill = party))
+col_party <- c("blue", "red")
+
+p1<-p_party + geom_polygon(color = "gray90", size = 0.1) + 
+  coord_map(projection = "albers", lat0 = 39, lat1 = 45) +
+  # guides(fill = FALSE) +
+  scale_fill_manual(values=col_party)+
+  labs(title="Election outcome 2016") +
+  theme_map()
+
+p1
+```
+
+```{r}
+# change it so that depending on the winning party, the margin should be dark blue if won by a big margin by democrat and dark red vice versa. Sharp margin should be light. <-- for very light areas, overlay the actual values.
+
+p_margin <- ggplot(data = margin16,
+            aes(x = long, y = lat,
+                group = state, fill = margin))
+
+p_margin + geom_polygon(color = "gray90", size = 0.1) + 
+  coord_map(projection = "albers", lat0 = 39, lat1 = 45) +
+  # guides(fill = FALSE) +
+  labs(title="margin by state 2016",fill="percent") +
+  scale_fill_gradient(low="red",high="white")+
+  theme_map()
+
+```
+
+
+```{r}
+# cleveland dot plot of margins? maybe overlay with turnout?
+```
 
